@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>練習メニュー作成</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<style>
+  :root{
+    --ink:#14181f;
+    --court:#1b2230;
+    --court-2:#242c3d;
+    --line:#3a4356;
+    --paper:#f4f2ec;
+    --paper-line:#d8d4c8;
+    --orange:#e8631c;
+    --orange-dark:#c24f12;
+    --muted:#8891a3;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--court); color:#eef0f4; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; overscroll-behavior:none;}
+  #app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; padding-bottom:96px;}
+
+  header{padding:18px 16px 10px; position:sticky; top:0; background:var(--court); z-index:20; border-bottom:1px solid var(--line);}
+  header h1{margin:0 0 12px; font-size:19px; font-weight:800; letter-spacing:.02em;}
+  header h1 span{color:var(--orange);}
+  .tabs{display:flex; gap:6px;}
+  .tab{flex:1; text-align:center; padding:9px 0; border-radius:9px; font-size:13px; font-weight:700; background:var(--court-2); color:var(--muted); border:1px solid var(--line); cursor:pointer;}
+  .tab.active{background:var(--orange); color:#fff; border-color:var(--orange);}
+
+  section{display:none; padding:16px;}
+  section.active{display:block;}
+
+  /* --- Builder view --- */
+  .block-label{font-size:11px; letter-spacing:.12em; color:var(--muted); font-weight:700; margin:4px 2px 8px; text-transform:uppercase;}
+
+  #palette{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px;}
+  .chip{background:var(--court-2); border:1px solid var(--line); color:#eef0f4; padding:9px 13px; border-radius:20px; font-size:13.5px; font-weight:600; cursor:pointer; user-select:none;}
+  .chip:active{background:var(--orange); border-color:var(--orange);}
+  .chip.empty-msg{color:var(--muted); font-size:12.5px; font-weight:500; border:none; background:none; padding:0;}
+
+  #exportCardWrap{background:#0f131a; border:1px solid var(--line); border-radius:14px; padding:14px;}
+  #exportCard{background:var(--paper); border-radius:6px; padding:16px 14px 22px; min-height:160px;}
+  #titleRow{margin-bottom:10px;}
+  #menuTitle{width:100%; border:none; background:transparent; font-size:15px; font-weight:800; color:var(--ink); padding:2px 2px 8px; border-bottom:2px solid var(--ink); font-family:inherit;}
+  #menuTitle::placeholder{color:#9a927e; font-weight:700;}
+  #menuTitle:focus{outline:none;}
+
+  #sequenceList{list-style:none; margin:0; padding:0;}
+  .tile{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:#fbfaf6; border:none; color:var(--ink);
+    padding:11px 12px; margin-top:5px; font-weight:800; font-size:16px;
+    width:fit-content; max-width:100%;
+  }
+  .tile:first-child{margin-top:0;}
+  .tile .txt{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tile .del{
+    flex:none; width:20px; height:20px; border-radius:50%; border:none; background:var(--paper-line);
+    color:#6b6455; font-size:12px; font-weight:900; line-height:20px; text-align:center; cursor:pointer; padding:0;
+  }
+  .tile.dragging{opacity:.5;}
+
+  #emptySeq{color:#9a927e; font-size:13px; font-weight:600; padding:20px 4px; text-align:center;}
+
+  .hint{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.6;}
+
+  .actionbar{position:fixed; bottom:0; left:0; right:0; background:var(--court); border-top:1px solid var(--line); padding:10px 16px 16px; display:flex; gap:10px; max-width:520px; margin:0 auto;}
+  .btn{flex:1; padding:13px 0; border-radius:11px; border:none; font-size:14.5px; font-weight:800; cursor:pointer;}
+  .btn-primary{background:var(--orange); color:#fff;}
+  .btn-primary:active{background:var(--orange-dark);}
+  .btn-ghost{background:var(--court-2); color:#cfd4de; border:1px solid var(--line); flex:0 0 84px;}
+
+  /* --- Tag management view --- */
+  .taginput-row{display:flex; gap:8px; margin-bottom:16px;}
+  #newTagInput{flex:1; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--court-2); color:#eef0f4; font-size:14px;}
+  #newTagInput::placeholder{color:var(--muted);}
+  #addTagBtn{padding:0 18px; border-radius:10px; border:none; background:var(--orange); color:#fff; font-weight:800; font-size:14px;}
+
+  #tagList{list-style:none; margin:0; padding:0;}
+  #tagList li{display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px solid var(--line);}
+  #tagList .tagtxt{flex:1; font-size:14.5px; font-weight:600;}
+  #tagList .icnbtn{background:none; border:none; color:var(--muted); font-size:13px; padding:6px 8px; cursor:pointer; font-weight:700;}
+  #tagList .icnbtn.danger{color:#e8631c;}
+
+  .resetrow{margin-top:18px; text-align:center;}
+  #resetTagsBtn{background:none; border:1px solid var(--line); color:var(--muted); font-size:12px; padding:8px 14px; border-radius:20px;}
+
+  .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:100px; background:#fff; color:var(--ink); padding:10px 18px; border-radius:20px; font-size:13px; font-weight:700; box-shadow:0 6px 20px rgba(0,0,0,.3); opacity:0; pointer-events:none; transition:opacity .25s, bottom .25s; z-index:50;}
+  .toast.show{opacity:1; bottom:112px;}
+
+  #previewOverlay{
+    position:fixed; inset:0; background:rgba(10,12,16,.94); z-index:100;
+    display:none; flex-direction:column; align-items:center; justify-content:flex-start;
+    padding:18px 16px 24px; overflow-y:auto;
+  }
+  #previewOverlay.show{display:flex;}
+  #previewOverlay .previewHint{color:#fff; font-size:13.5px; font-weight:700; text-align:center; margin-bottom:14px; line-height:1.6;}
+  #previewOverlay .previewHint b{color:var(--orange);}
+  #previewImg{max-width:100%; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  #closePreviewBtn{margin-top:18px; padding:12px 28px; border-radius:22px; border:1px solid var(--line); background:var(--court-2); color:#eef0f4; font-size:14px; font-weight:700;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>練習メニュー<span>作成</span></h1>
+    <div class="tabs">
+      <div class="tab active" data-view="builder">メニュー作成</div>
+      <div class="tab" data-view="tags">タグ管理</div>
+    </div>
+  </header>
+
+  <section id="view-builder" class="active">
+    <div class="block-label">タップしてメニューに追加</div>
+    <div id="palette"></div>
+    <div class="taginput-row" style="margin-bottom:22px;">
+      <input id="quickAddInput" placeholder="その場でタグを追加(登録はされません)" />
+      <button id="quickAddBtn">追加</button>
+    </div>
+
+    <div class="block-label">今日の流れ(並び替え・削除OK)</div>
+    <div id="exportCardWrap">
+      <div id="exportCard">
+        <div id="titleRow">
+          <input id="menuTitle" placeholder="例: 7/15(水) 練習メニュー" />
+        </div>
+        <ul id="sequenceList"></ul>
+        <div id="emptySeq">タグをタップして追加してください</div>
+      </div>
+    </div>
+    <div class="hint">※ タイルを長押ししてドラッグすると並び替えできます。画像として保存する時は削除ボタンなどは写りません。</div>
+  </section>
+
+  <section id="view-tags">
+    <div class="block-label">よく使うタグを登録</div>
+    <div class="taginput-row">
+      <input id="newTagInput" placeholder="新しいタグを入力 (例: 3ptシューティング)" />
+      <button id="addTagBtn">追加</button>
+    </div>
+    <ul id="tagList"></ul>
+    <div class="resetrow">
+      <button id="resetTagsBtn">初期のタグ一覧に戻す</button>
+    </div>
+  </section>
+
+</div>
+
+<div class="actionbar" id="builderBar">
+  <button class="btn btn-ghost" id="clearBtn">クリア</button>
+  <button class="btn btn-primary" id="exportBtn">画像として保存</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="previewOverlay">
+  <div class="previewHint">画像を<b>長押し</b>して「写真に追加」を選ぶとカメラロールに保存されます</div>
+  <img id="previewImg" alt="練習メニュー画像" />
+  <button id="closePreviewBtn">閉じる</button>
+</div>
+
+<script>
+const DEFAULT_TAGS = [
+  "W-up","Box-out","Loose-ball","Floater Finishing","Paint 1on1",
+  "Handle & Footwork","Pull up Jumper","Running shot","Post Drills",
+  "Tap・Rebound","Alley-oop","Handoff Catch & Go Attack",
+  "HC 2on2","HC 4on4","HC 5on5","Break 4on4","Break 5on5",
+  "HC 5-0 Walk-through","HC 5-0 Execution",
+  "Tow-man Fast Break","Mirror Drill","Pack Man","Dash&Back","Peel switch",
+  "FC Shooting Drill","First to X points game","Buzzer Beater","Lakers",
+  "【Offensive Skills】","Passing","Contact Finish","Catch and Pivot","Hook Pass",
+  "HC 4-0 Shooting","Zone attack shooting",
+  "【Defensive Skills】","Shiranui Shuffle","Sidekick","Run and Jump Switch",
+  "Pass Cut","Sticking","Help and Recovery","Shot Block","Post Defense",
+  "Black 1","Rim Run","Slip Front",
+  "【Competitive Drills】","Jungle","Passing down","Contact 1on1","Closeout 1on1",
+  "Deny 1on1","HC 1on1","FC 1on1","FC 2on2","HC 3on3","FC 3on3","FC 5on5",
+  "HC 4on5","HC 5on4","HC 1on2","FC 1on2"
+];
+
+let presetTags = DEFAULT_TAGS.slice();
+let sequence = []; // array of {id, text}
+let seqCounter = 0;
+let sortableInstance = null;
+
+function loadTags(){
+  renderPalette();
+  renderTagList();
+}
+
+function saveTags(){
+  // ログイン不要で使えるよう、タグ一覧は保存せずセッション内のみで保持します
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=> t.classList.remove('show'), 1600);
+}
+
+// ---------- Palette (builder view) ----------
+function renderPalette(){
+  const el = document.getElementById('palette');
+  el.innerHTML = '';
+  if(presetTags.length === 0){
+    el.innerHTML = '<div class="chip empty-msg">タグ管理タブから単語を登録してください</div>';
+    return;
+  }
+  presetTags.forEach(tag=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = tag;
+    chip.addEventListener('click', ()=> addToSequence(tag));
+    el.appendChild(chip);
+  });
+}
+
+function addToSequence(text){
+  sequence.push({id: 'seq'+(seqCounter++), text});
+  renderSequence();
+}
+
+function renderSequence(){
+  const list = document.getElementById('sequenceList');
+  const empty = document.getElementById('emptySeq');
+  list.innerHTML = '';
+  empty.style.display = sequence.length ? 'none' : 'block';
+
+  sequence.forEach(item=>{
+    const li = document.createElement('li');
+    li.className = 'tile';
+    li.dataset.id = item.id;
+    const span = document.createElement('span');
+    span.className = 'txt';
+    span.textContent = item.text;
+    const del = document.createElement('button');
+    del.className = 'del no-export';
+    del.textContent = '✕';
+    del.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      sequence = sequence.filter(s=>s.id !== item.id);
+      renderSequence();
+    });
+    li.appendChild(span);
+    li.appendChild(del);
+    list.appendChild(li);
+  });
+
+  if(sortableInstance){ sortableInstance.destroy(); }
+  sortableInstance = new Sortable(list, {
+    animation:150,
+    delay:120,
+    delayOnTouchOnly:true,
+    ghostClass:'dragging',
+    onEnd: ()=>{
+      const ids = Array.from(list.children).map(li=>li.dataset.id);
+      sequence = ids.map(id=> sequence.find(s=>s.id===id));
+    }
+  });
+}
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  if(sequence.length && !confirm('今日のメニューをすべて削除しますか？')) return;
+  sequence = [];
+  renderSequence();
+});
+
+document.getElementById('quickAddBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('quickAddInput');
+  const val = input.value.trim();
+  if(!val) return;
+  addToSequence(val);
+  input.value = '';
+});
+document.getElementById('quickAddInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){ document.getElementById('quickAddBtn').click(); }
+});
+
+document.getElementById('exportBtn').addEventListener('click', async ()=>{
+  const card = document.getElementById('exportCard');
+  if(sequence.length === 0){
+    showToast('タグを1つ以上追加してください');
+    return;
+  }
+  const btn = document.getElementById('exportBtn');
+  const original = btn.textContent;
+  btn.textContent = '作成中...';
+  btn.disabled = true;
+  try{
+    const canvas = await html2canvas(card, {
+      backgroundColor: '#f4f2ec',
+      scale: 3,
+      ignoreElements: (el)=> el.classList && el.classList.contains('no-export')
+    });
+    const dataUrl = canvas.toDataURL('image/png');
+    document.getElementById('previewImg').src = dataUrl;
+    document.getElementById('previewOverlay').classList.add('show');
+  }catch(e){
+    showToast('画像の作成に失敗しました');
+  }finally{
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('closePreviewBtn').addEventListener('click', ()=>{
+  document.getElementById('previewOverlay').classList.remove('show');
+});
+
+// ---------- Tag management view ----------
+function renderTagList(){
+  const list = document.getElementById('tagList');
+  list.innerHTML = '';
+  presetTags.forEach((tag, idx)=>{
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.className = 'tagtxt';
+    span.textContent = tag;
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icnbtn';
+    editBtn.textContent = '編集';
+    editBtn.addEventListener('click', ()=>{
+      const next = prompt('タグを編集', tag);
+      if(next === null) return;
+      const trimmed = next.trim();
+      if(!trimmed) return;
+      presetTags[idx] = trimmed;
+      saveTags();
+      renderPalette();
+      renderTagList();
+    });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'icnbtn danger';
+    delBtn.textContent = '削除';
+    delBtn.addEventListener('click', ()=>{
+      presetTags.splice(idx,1);
+      saveTags();
+      renderPalette();
+      renderTagList();
+    });
+    li.appendChild(span);
+    li.appendChild(editBtn);
+    li.appendChild(delBtn);
+    list.appendChild(li);
+  });
+}
+
+document.getElementById('addTagBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('newTagInput');
+  const val = input.value.trim();
+  if(!val) return;
+  if(presetTags.includes(val)){
+    showToast('同じタグが既にあります');
+    return;
+  }
+  presetTags.push(val);
+  input.value = '';
+  saveTags();
+  renderPalette();
+  renderTagList();
+});
+document.getElementById('newTagInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){ document.getElementById('addTagBtn').click(); }
+});
+
+document.getElementById('resetTagsBtn').addEventListener('click', ()=>{
+  if(!confirm('登録したタグを削除して、初期状態に戻します。よろしいですか？')) return;
+  presetTags = DEFAULT_TAGS.slice();
+  saveTags();
+  renderPalette();
+  renderTagList();
+});
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+    document.getElementById('view-' + tab.dataset.view).classList.add('active');
+    document.getElementById('builderBar').style.display = (tab.dataset.view === 'builder') ? 'flex' : 'none';
+  });
+});
+
+function setDefaultTitle(){
+  const days = ['日','月','火','水','木','金','土'];
+  const d = new Date();
+  const titleEl = document.getElementById('menuTitle');
+  titleEl.value = `${d.getMonth()+1}/${d.getDate()}(${days[d.getDay()]}) Practice Menu`;
+}
+
+renderSequence();
+loadTags();
+setDefaultTitle();
+</script>
+</body>
+</html>
