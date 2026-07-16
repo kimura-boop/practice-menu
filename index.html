@@ -17,6 +17,11 @@
     --orange:#e8631c;
     --orange-dark:#c24f12;
     --muted:#8891a3;
+    --cat-common:#9aa3b5;
+    --cat-off:#e8631c;
+    --cat-def:#3d8bfd;
+    --cat-comp:#2fb872;
+    --cat-tac:#b366f0;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; background:var(--court); color:#eef0f4; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; overscroll-behavior:none;}
@@ -35,7 +40,13 @@
   /* --- Builder view --- */
   .block-label{font-size:11px; letter-spacing:.12em; color:var(--muted); font-weight:700; margin:4px 2px 8px; text-transform:uppercase;}
 
-  #palette{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px;}
+  #groupNav{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;}
+  #groupNav .navchip{padding:6px 12px; border-radius:14px; font-size:11.5px; font-weight:700; border:1px solid var(--line); background:var(--court-2); cursor:pointer;}
+
+  #palette{margin-bottom:6px;}
+  .group-block{margin-bottom:18px;}
+  .group-label{font-size:12px; font-weight:800; margin:0 0 8px 2px; padding-left:8px; border-left:3px solid var(--muted);}
+  .group-chips{display:flex; flex-wrap:wrap; gap:8px;}
   .chip{background:var(--court-2); border:1px solid var(--line); color:#eef0f4; padding:9px 13px; border-radius:20px; font-size:13.5px; font-weight:600; cursor:pointer; user-select:none;}
   .chip:active{background:var(--orange); border-color:var(--orange);}
   .chip.empty-msg{color:var(--muted); font-size:12.5px; font-weight:500; border:none; background:none; padding:0;}
@@ -115,6 +126,7 @@
 
   <section id="view-builder" class="active">
     <div class="block-label">タップしてメニューに追加</div>
+    <div id="groupNav"></div>
     <div id="palette"></div>
     <div class="taginput-row" style="margin-bottom:22px;">
       <input id="quickAddInput" placeholder="その場でタグを追加(登録はされません)" />
@@ -162,23 +174,42 @@
 </div>
 
 <script>
-const DEFAULT_TAGS = [
-  "W-up","Box-out","Loose-ball","Floater Finishing","Paint 1on1",
-  "Handle & Footwork","Pull up Jumper","Running shot","Post Drills",
-  "Tap・Rebound","Alley-oop","Handoff Catch & Go Attack",
-  "HC 2on2","HC 4on4","HC 5on5","Break 4on4","Break 5on5",
-  "HC 5-0 Walk-through","HC 5-0 Execution",
-  "Tow-man Fast Break","Mirror Drill","Pack Man","Dash&Back","Peel switch",
-  "FC Shooting Drill","First to X points game","Buzzer Beater","Lakers",
-  "【Offensive Skills】","Passing","Contact Finish","Catch and Pivot","Hook Pass",
-  "HC 4-0 Shooting","Zone attack shooting",
-  "【Defensive Skills】","Shiranui Shuffle","Sidekick","Run and Jump Switch",
-  "Pass Cut","Sticking","Help and Recovery","Shot Block","Post Defense",
-  "Black 1","Rim Run","Slip Front",
-  "【Competitive Drills】","Jungle","Passing down","Contact 1on1","Closeout 1on1",
-  "Deny 1on1","HC 1on1","FC 1on1","FC 2on2","HC 3on3","FC 3on3","FC 5on5",
-  "HC 4on5","HC 5on4","HC 1on2","FC 1on2"
+const TAG_GROUPS = [
+  { name: "共通", color: "var(--cat-common)", tags: [
+    "W-up"
+  ]},
+  { name: "Offensive Skills", color: "var(--cat-off)", tags: [
+    "Handle & Footwork","Passing","Running shot","Post Drills","Tap・Rebound",
+    "Alley-oop","Floater Finishing","Contact Finish","Handoff Catch & Go Attack",
+    "Catch and Pivot","Pull up Jumper","Tow-man Fast Break","Hook Pass",
+    "HC 4-0 Shooting","Zone attack shooting","FC Shooting Drill","Buzzer Beater","Lakers"
+  ]},
+  { name: "Defensive Skills", color: "var(--cat-def)", tags: [
+    "Shiranui Shuffle","Sidekick","Box-out","Loose-ball","Mirror Drill","Pack Man",
+    "Dash&Back","Peel switch","Run and Jump Switch","Pass Cut","Sticking",
+    "Help and Recovery","Shot Block","Post Defense","Black 1","Rim Run","Slip Front"
+  ]},
+  { name: "Competitive Drills", color: "var(--cat-comp)", tags: [
+    "Jungle","Passing down","Paint 1on1","Contact 1on1","Closeout 1on1","Deny 1on1",
+    "HC 1on1","FC 1on1","HC 2on2","FC 2on2","HC 3on3","FC 3on3","HC 4on4","Break 4on4",
+    "HC 5on5","FC 5on5","Break 5on5","HC 4on5","HC 5on4","HC 1on2","FC 1on2",
+    "First to X points game"
+  ]},
+  { name: "Tactics", color: "var(--cat-tac)", tags: [
+    "BOB","SOB","HC 5-0 Walk-through","HC 5-0 Execution"
+  ]}
 ];
+
+const DEFAULT_TAGS = TAG_GROUPS.flatMap(g => g.tags);
+
+function categoryOf(tag){
+  for(const g of TAG_GROUPS){ if(g.tags.includes(tag)) return g; }
+  return { name: "その他", color: "var(--muted)" };
+}
+
+function slugify(name){
+  return 'grp-' + name.replace(/[^a-zA-Z0-9\u3040-\u30ff\u4e00-\u9faf]+/g,'');
+}
 
 let presetTags = DEFAULT_TAGS.slice();
 let sequence = []; // array of {id, text}
@@ -204,17 +235,67 @@ function showToast(msg){
 // ---------- Palette (builder view) ----------
 function renderPalette(){
   const el = document.getElementById('palette');
+  const nav = document.getElementById('groupNav');
   el.innerHTML = '';
+  nav.innerHTML = '';
+
   if(presetTags.length === 0){
     el.innerHTML = '<div class="chip empty-msg">タグ管理タブから単語を登録してください</div>';
     return;
   }
+
+  // group tags in TAG_GROUPS order, with an "その他" bucket for custom tags at the end
+  const orderNames = TAG_GROUPS.map(g=>g.name).concat(['その他']);
+  const colorByName = {};
+  TAG_GROUPS.forEach(g=> colorByName[g.name] = g.color);
+  colorByName['その他'] = 'var(--muted)';
+
+  const buckets = {};
+  orderNames.forEach(n=> buckets[n] = []);
   presetTags.forEach(tag=>{
-    const chip = document.createElement('div');
-    chip.className = 'chip';
-    chip.textContent = tag;
-    chip.addEventListener('click', ()=> addToSequence(tag));
-    el.appendChild(chip);
+    const cat = categoryOf(tag).name;
+    if(!buckets[cat]) buckets[cat] = [];
+    buckets[cat].push(tag);
+  });
+
+  orderNames.forEach(name=>{
+    const tags = buckets[name];
+    if(!tags || tags.length === 0) return;
+
+    const navChip = document.createElement('div');
+    navChip.className = 'navchip';
+    navChip.textContent = name;
+    navChip.style.color = colorByName[name];
+    navChip.style.borderColor = colorByName[name];
+    navChip.addEventListener('click', ()=>{
+      const target = document.getElementById(slugify(name));
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+    nav.appendChild(navChip);
+
+    const block = document.createElement('div');
+    block.className = 'group-block';
+    block.id = slugify(name);
+
+    const label = document.createElement('div');
+    label.className = 'group-label';
+    label.textContent = name;
+    label.style.color = colorByName[name];
+    label.style.borderLeftColor = colorByName[name];
+    block.appendChild(label);
+
+    const chipsWrap = document.createElement('div');
+    chipsWrap.className = 'group-chips';
+    tags.forEach(tag=>{
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.textContent = tag;
+      chip.addEventListener('click', ()=> addToSequence(tag));
+      chipsWrap.appendChild(chip);
+    });
+    block.appendChild(chipsWrap);
+
+    el.appendChild(block);
   });
 }
 
