@@ -40,15 +40,14 @@
   /* --- Builder view --- */
   .block-label{font-size:11px; letter-spacing:.12em; color:var(--muted); font-weight:700; margin:4px 2px 8px; text-transform:uppercase;}
 
-  #groupNav{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;}
-  #groupNav .navchip{padding:6px 12px; border-radius:14px; font-size:11.5px; font-weight:700; border:1px solid var(--line); background:var(--court-2); cursor:pointer;}
+  #groupNav{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;}
+  #groupNav .navchip{padding:7px 14px; border-radius:14px; font-size:12px; font-weight:800; border:1.5px solid var(--c); background:var(--court-2); color:var(--c); cursor:pointer;}
+  #groupNav .navchip.active{background:var(--c); color:#fff;}
 
-  #palette{margin-bottom:6px;}
-  .group-block{margin-bottom:18px;}
-  .group-label{font-size:12px; font-weight:800; margin:0 0 8px 2px; padding-left:8px; border-left:3px solid var(--muted);}
+  #palette{margin-bottom:6px; min-height:44px;}
   .group-chips{display:flex; flex-wrap:wrap; gap:8px;}
-  .chip{background:var(--court-2); border:1px solid var(--line); color:#eef0f4; padding:9px 13px; border-radius:20px; font-size:13.5px; font-weight:600; cursor:pointer; user-select:none;}
-  .chip:active{background:var(--orange); border-color:var(--orange);}
+  .chip{background:var(--court-2); border:1.5px solid var(--c, var(--line)); color:#eef0f4; padding:9px 13px; border-radius:20px; font-size:13.5px; font-weight:600; cursor:pointer; user-select:none;}
+  .chip:active{background:var(--c, var(--orange)); border-color:var(--c, var(--orange));}
   .chip.empty-msg{color:var(--muted); font-size:12.5px; font-weight:500; border:none; background:none; padding:0;}
 
   #exportCardWrap{background:#0f131a; border:1px solid var(--line); border-radius:14px; padding:14px;}
@@ -125,14 +124,6 @@
   </header>
 
   <section id="view-builder" class="active">
-    <div class="block-label">タップしてメニューに追加</div>
-    <div id="groupNav"></div>
-    <div id="palette"></div>
-    <div class="taginput-row" style="margin-bottom:22px;">
-      <input id="quickAddInput" placeholder="その場でタグを追加(登録はされません)" />
-      <button id="quickAddBtn">追加</button>
-    </div>
-
     <div class="block-label">今日の流れ(並び替え・削除OK)</div>
     <div id="exportCardWrap">
       <div id="exportCard">
@@ -144,6 +135,14 @@
       </div>
     </div>
     <div class="hint">※ タイルを長押ししてドラッグすると並び替えできます。画像として保存する時は削除ボタンなどは写りません。</div>
+
+    <div class="block-label" style="margin-top:22px;">カテゴリを選んでタグを追加</div>
+    <div id="groupNav"></div>
+    <div id="palette"></div>
+    <div class="taginput-row" style="margin-top:14px;">
+      <input id="quickAddInput" placeholder="その場でタグを追加(登録はされません)" />
+      <button id="quickAddBtn">追加</button>
+    </div>
   </section>
 
   <section id="view-tags">
@@ -233,70 +232,77 @@ function showToast(msg){
 }
 
 // ---------- Palette (builder view) ----------
+let currentGroup = null;
+
 function renderPalette(){
-  const el = document.getElementById('palette');
+  renderGroupNav();
+  renderPaletteChips();
+}
+
+function renderGroupNav(){
   const nav = document.getElementById('groupNav');
-  el.innerHTML = '';
   nav.innerHTML = '';
 
-  if(presetTags.length === 0){
-    el.innerHTML = '<div class="chip empty-msg">タグ管理タブから単語を登録してください</div>';
-    return;
-  }
+  if(presetTags.length === 0){ return; }
 
-  // group tags in TAG_GROUPS order, with an "その他" bucket for custom tags at the end
   const orderNames = TAG_GROUPS.map(g=>g.name).concat(['その他']);
   const colorByName = {};
   TAG_GROUPS.forEach(g=> colorByName[g.name] = g.color);
   colorByName['その他'] = 'var(--muted)';
 
-  const buckets = {};
-  orderNames.forEach(n=> buckets[n] = []);
-  presetTags.forEach(tag=>{
-    const cat = categoryOf(tag).name;
-    if(!buckets[cat]) buckets[cat] = [];
-    buckets[cat].push(tag);
+  const hasTags = {};
+  orderNames.forEach(name=>{
+    hasTags[name] = presetTags.some(t => categoryOf(t).name === name);
   });
+
+  if(!currentGroup || !hasTags[currentGroup]){
+    currentGroup = orderNames.find(name => hasTags[name]) || null;
+  }
 
   orderNames.forEach(name=>{
-    const tags = buckets[name];
-    if(!tags || tags.length === 0) return;
-
-    const navChip = document.createElement('div');
-    navChip.className = 'navchip';
-    navChip.textContent = name;
-    navChip.style.color = colorByName[name];
-    navChip.style.borderColor = colorByName[name];
-    navChip.addEventListener('click', ()=>{
-      const target = document.getElementById(slugify(name));
-      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    if(!hasTags[name]) return;
+    const chip = document.createElement('div');
+    chip.className = 'navchip' + (name === currentGroup ? ' active' : '');
+    chip.textContent = name;
+    chip.style.setProperty('--c', colorByName[name]);
+    chip.addEventListener('click', ()=>{
+      currentGroup = name;
+      renderGroupNav();
+      renderPaletteChips();
     });
-    nav.appendChild(navChip);
-
-    const block = document.createElement('div');
-    block.className = 'group-block';
-    block.id = slugify(name);
-
-    const label = document.createElement('div');
-    label.className = 'group-label';
-    label.textContent = name;
-    label.style.color = colorByName[name];
-    label.style.borderLeftColor = colorByName[name];
-    block.appendChild(label);
-
-    const chipsWrap = document.createElement('div');
-    chipsWrap.className = 'group-chips';
-    tags.forEach(tag=>{
-      const chip = document.createElement('div');
-      chip.className = 'chip';
-      chip.textContent = tag;
-      chip.addEventListener('click', ()=> addToSequence(tag));
-      chipsWrap.appendChild(chip);
-    });
-    block.appendChild(chipsWrap);
-
-    el.appendChild(block);
+    nav.appendChild(chip);
   });
+}
+
+function renderPaletteChips(){
+  const el = document.getElementById('palette');
+  el.innerHTML = '';
+
+  if(presetTags.length === 0){
+    el.innerHTML = '<div class="chip empty-msg">タグ管理タブから単語を登録してください</div>';
+    return;
+  }
+  if(!currentGroup){
+    el.innerHTML = '<div class="chip empty-msg">タグがありません</div>';
+    return;
+  }
+
+  const groupColor = currentGroup === 'その他'
+    ? 'var(--muted)'
+    : (TAG_GROUPS.find(g=>g.name===currentGroup) || {}).color || 'var(--muted)';
+
+  const tags = presetTags.filter(t => categoryOf(t).name === currentGroup);
+  const wrap = document.createElement('div');
+  wrap.className = 'group-chips';
+  tags.forEach(tag=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = tag;
+    chip.style.setProperty('--c', groupColor);
+    chip.addEventListener('click', ()=> addToSequence(tag));
+    wrap.appendChild(chip);
+  });
+  el.appendChild(wrap);
 }
 
 function addToSequence(text){
