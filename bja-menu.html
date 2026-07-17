@@ -161,6 +161,7 @@
     <div class="block-label" style="margin-top:22px;">カテゴリを選んでタグを追加</div>
     <div id="groupNav"></div>
     <div id="palette"></div>
+    <div class="hint" style="text-align:center;">※ タグも長押しドラッグで並び替えできます。</div>
     <div class="taginput-row" style="margin-top:14px;">
       <input id="quickAddInput" placeholder="その場でタグを追加(登録はされません)" />
       <button id="quickAddBtn">追加</button>
@@ -239,6 +240,7 @@ let presetTags = DEFAULT_TAGS.slice();
 let sequence = []; // array of {id, text}
 let seqCounter = 0;
 let sortableInstance = null;
+let paletteSortable = null;
 
 function loadTags(){
   renderPalette();
@@ -323,11 +325,28 @@ function renderPaletteChips(){
     const chip = document.createElement('div');
     chip.className = 'chip';
     chip.textContent = tag;
+    chip.dataset.tag = tag;
     chip.style.setProperty('--c', groupColor);
     chip.addEventListener('click', ()=> addToSequence(tag));
     wrap.appendChild(chip);
   });
   el.appendChild(wrap);
+
+  if(paletteSortable){ paletteSortable.destroy(); }
+  const groupForSort = currentGroup;
+  paletteSortable = new Sortable(wrap, {
+    animation:150,
+    delay:150,
+    delayOnTouchOnly:true,
+    ghostClass:'dragging',
+    onEnd: ()=>{
+      const newOrder = Array.from(wrap.children).map(c=>c.dataset.tag);
+      const indices = [];
+      presetTags.forEach((t,i)=>{ if(categoryOf(t).name === groupForSort) indices.push(i); });
+      indices.forEach((idx,i)=>{ presetTags[idx] = newOrder[i]; });
+      saveTags();
+    }
+  });
 }
 
 function addToSequence(text){
