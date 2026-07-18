@@ -110,6 +110,7 @@
   .taginput-row{display:flex; gap:8px; margin-bottom:16px;}
   #newTagInput{flex:1; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--court-2); color:var(--ink); font-size:14px;}
   #newTagInput::placeholder{color:var(--muted);}
+  #newTagCategory{flex:0 0 118px; padding:0 8px; border-radius:10px; border:1px solid var(--line); background:var(--court-2); color:var(--ink); font-size:12.5px; font-weight:700;}
   #addTagBtn{padding:0 18px; border-radius:10px; border:none; background:var(--orange); color:#fff; font-weight:800; font-size:14px;}
 
   #tagList{list-style:none; margin:0; padding:0;}
@@ -175,6 +176,7 @@
     <div class="block-label">よく使うタグを登録</div>
     <div class="taginput-row">
       <input id="newTagInput" placeholder="新しいタグを入力 (例: 3ptシューティング)" />
+      <select id="newTagCategory"></select>
       <button id="addTagBtn">追加</button>
     </div>
     <ul id="tagList"></ul>
@@ -226,6 +228,24 @@ const TAG_GROUPS = [
 ];
 
 const DEFAULT_TAGS = TAG_GROUPS.flatMap(g => g.tags);
+const ORIGINAL_GROUPS = TAG_GROUPS.map(g => ({ name: g.name, color: g.color, tags: g.tags.slice() }));
+
+function addTagToGroup(tag, groupName){
+  const g = TAG_GROUPS.find(x => x.name === groupName);
+  if(g) g.tags.push(tag);
+}
+function removeTagFromGroups(tag){
+  TAG_GROUPS.forEach(g=>{
+    const i = g.tags.indexOf(tag);
+    if(i > -1) g.tags.splice(i,1);
+  });
+}
+function renameTagInGroups(oldTag, newTag){
+  TAG_GROUPS.forEach(g=>{
+    const i = g.tags.indexOf(oldTag);
+    if(i > -1) g.tags[i] = newTag;
+  });
+}
 
 function categoryOf(tag){
   for(const g of TAG_GROUPS){ if(g.tags.includes(tag)) return g; }
@@ -442,6 +462,17 @@ document.getElementById('closePreviewBtn').addEventListener('click', ()=>{
 });
 
 // ---------- Tag management view ----------
+function populateCategorySelect(){
+  const sel = document.getElementById('newTagCategory');
+  sel.innerHTML = '';
+  TAG_GROUPS.forEach(g=>{
+    const opt = document.createElement('option');
+    opt.value = g.name;
+    opt.textContent = g.name;
+    sel.appendChild(opt);
+  });
+}
+
 function renderTagList(){
   const list = document.getElementById('tagList');
   list.innerHTML = '';
@@ -450,6 +481,9 @@ function renderTagList(){
     const span = document.createElement('span');
     span.className = 'tagtxt';
     span.textContent = tag;
+    const catTag = document.createElement('span');
+    catTag.textContent = categoryOf(tag).name;
+    catTag.style.cssText = 'font-size:10.5px; font-weight:700; color:var(--muted); margin-right:6px;';
     const editBtn = document.createElement('button');
     editBtn.className = 'icnbtn';
     editBtn.textContent = '編集';
@@ -458,6 +492,7 @@ function renderTagList(){
       if(next === null) return;
       const trimmed = next.trim();
       if(!trimmed) return;
+      renameTagInGroups(tag, trimmed);
       presetTags[idx] = trimmed;
       saveTags();
       renderPalette();
@@ -467,12 +502,14 @@ function renderTagList(){
     delBtn.className = 'icnbtn danger';
     delBtn.textContent = '削除';
     delBtn.addEventListener('click', ()=>{
+      removeTagFromGroups(tag);
       presetTags.splice(idx,1);
       saveTags();
       renderPalette();
       renderTagList();
     });
     li.appendChild(span);
+    li.appendChild(catTag);
     li.appendChild(editBtn);
     li.appendChild(delBtn);
     list.appendChild(li);
@@ -481,6 +518,7 @@ function renderTagList(){
 
 document.getElementById('addTagBtn').addEventListener('click', ()=>{
   const input = document.getElementById('newTagInput');
+  const category = document.getElementById('newTagCategory').value;
   const val = input.value.trim();
   if(!val) return;
   if(presetTags.includes(val)){
@@ -488,6 +526,7 @@ document.getElementById('addTagBtn').addEventListener('click', ()=>{
     return;
   }
   presetTags.push(val);
+  addTagToGroup(val, category);
   input.value = '';
   saveTags();
   renderPalette();
@@ -499,11 +538,16 @@ document.getElementById('newTagInput').addEventListener('keydown', (e)=>{
 
 document.getElementById('resetTagsBtn').addEventListener('click', ()=>{
   if(!confirm('登録したタグを削除して、初期状態に戻します。よろしいですか？')) return;
+  TAG_GROUPS.length = 0;
+  ORIGINAL_GROUPS.forEach(g => TAG_GROUPS.push({ name:g.name, color:g.color, tags:g.tags.slice() }));
   presetTags = DEFAULT_TAGS.slice();
+  currentGroup = null;
   saveTags();
   renderPalette();
   renderTagList();
 });
+
+populateCategorySelect();
 
 // ---------- View switching ----------
 function switchView(view){
